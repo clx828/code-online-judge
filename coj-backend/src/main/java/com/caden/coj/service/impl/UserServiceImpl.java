@@ -8,22 +8,34 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.caden.coj.common.ErrorCode;
 import com.caden.coj.constant.CommonConstant;
 import com.caden.coj.exception.BusinessException;
+import com.caden.coj.exception.ThrowUtils;
+import com.caden.coj.manager.EmailManage;
 import com.caden.coj.mapper.UserMapper;
 import com.caden.coj.model.dto.user.UserQueryRequest;
+import com.caden.coj.model.dto.user.UserRegisterRequest;
 import com.caden.coj.model.entity.User;
 import com.caden.coj.model.enums.UserRoleEnum;
 import com.caden.coj.model.vo.LoginUserVO;
 import com.caden.coj.model.vo.UserVO;
 import com.caden.coj.service.UserService;
 import com.caden.coj.utils.SqlUtils;
+
+import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import javax.annotation.Resource;
+import javax.mail.MessagingException;
 import javax.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import me.chanjar.weixin.common.bean.WxOAuth2UserInfo;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.BeanUtils;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.DigestUtils;
 
@@ -42,9 +54,23 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
      */
     public static final String SALT = "caden";
 
+    @Resource
+    private EmailManage  emailManage;
+    @Autowired
+    private StringRedisTemplate redisTemplate;
     @Override
-    public long userRegister(String userAccount, String userPassword, String checkPassword) {
+    public long userRegister(UserRegisterRequest userRegisterRequest) {
+        String userAccount = userRegisterRequest.getUserAccount();
+        String userPassword = userRegisterRequest.getUserPassword();
+        String checkPassword = userRegisterRequest.getCheckPassword();
+        String userEmial = userRegisterRequest.getUserEmial();
+        String verifyCode = userRegisterRequest.getVerifyCode();
         // 1. 校验
+        //从redis获取验证码
+        String redisCode = redisTemplate.opsForValue().get(userEmial);
+        log.error("redisCode: " + redisCode);
+        log.error(verifyCode);
+        ThrowUtils.throwIf(!verifyCode.equals(redisCode), ErrorCode.PARAMS_ERROR, "验证码错误");
         if (StringUtils.isAnyBlank(userAccount, userPassword, checkPassword)) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "参数为空");
         }
@@ -58,6 +84,8 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         if (!userPassword.equals(checkPassword)) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "两次输入的密码不一致");
         }
+
+
         synchronized (userAccount.intern()) {
             // 账户不能重复
             QueryWrapper<User> queryWrapper = new QueryWrapper<>();
@@ -268,5 +296,31 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         queryWrapper.orderBy(SqlUtils.validSortField(sortField), sortOrder.equals(CommonConstant.SORT_ORDER_ASC),
                 sortField);
         return queryWrapper;
+    }
+
+    @Override
+    public Boolean getVerifyCode(String userEmail){
+        ThrowUtils.throwIf(userEmail == null, ErrorCode.PARAMS_ERROR);
+        ThrowUtils.throwIf(StringUtils.isBlank(userEmail), ErrorCode.PARAMS_ERROR);
+        String code = generateCode();
+//        redisTemplate.opsForValue().set(userEmail, code);
+        String  subject = "您的验证码";
+        String content = "您的验证码是: <b>" + code + "</b>，5分钟内有效。";
+        try {
+            emailManage.sendMail(userEmail,  subject, content);
+        }catch (UnsupportedEncodingException e){
+           ThrowUtils.throwIf(true,ErrorCode.OPERATION_ERROR,"不支持的编码异常");
+        }catch (MessagingException e) {
+                log.warn("验证码发送失败，原因为：{}", e.getMessage());
+                ThrowUtils.throwIf(true,ErrorCode.OPERATION_ERROR,"发送验证码失败");
+            }
+        //将验证码存入redis,5分钟失效
+        redisTemplate.opsForValue().set(userEmail, code, 5, TimeUnit.MINUTES);
+        return true;
+    }
+
+    private String generateCode() {
+        Random random = new Random();
+        return  String.format("%06d",random.nextInt(999999));
     }
 }

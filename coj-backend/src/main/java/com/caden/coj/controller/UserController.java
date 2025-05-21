@@ -10,19 +10,16 @@ import com.caden.coj.config.WxOpenConfig;
 import com.caden.coj.constant.UserConstant;
 import com.caden.coj.exception.BusinessException;
 import com.caden.coj.exception.ThrowUtils;
-import com.caden.coj.model.dto.user.UserAddRequest;
-import com.caden.coj.model.dto.user.UserLoginRequest;
-import com.caden.coj.model.dto.user.UserQueryRequest;
-import com.caden.coj.model.dto.user.UserRegisterRequest;
-import com.caden.coj.model.dto.user.UserUpdateMyRequest;
-import com.caden.coj.model.dto.user.UserUpdateRequest;
+import com.caden.coj.model.dto.user.*;
 import com.caden.coj.model.entity.User;
 import com.caden.coj.model.vo.LoginUserVO;
 import com.caden.coj.model.vo.UserVO;
 import com.caden.coj.service.UserService;
 
+import java.io.UnsupportedEncodingException;
 import java.util.List;
 import javax.annotation.Resource;
+import javax.mail.MessagingException;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 
@@ -75,10 +72,12 @@ public class UserController {
         String userAccount = userRegisterRequest.getUserAccount();
         String userPassword = userRegisterRequest.getUserPassword();
         String checkPassword = userRegisterRequest.getCheckPassword();
-        if (StringUtils.isAnyBlank(userAccount, userPassword, checkPassword)) {
-            return null;
+        String userEmial = userRegisterRequest.getUserEmial();
+        String verifyCode = userRegisterRequest.getVerifyCode();
+        if (StringUtils.isAnyBlank(userAccount, userPassword, checkPassword, userEmial,  verifyCode)){
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
         }
-        long result = userService.userRegister(userAccount, userPassword, checkPassword);
+        long result = userService.userRegister(userRegisterRequest);
         return ResultUtils.success(result);
     }
 
@@ -316,5 +315,14 @@ public class UserController {
         boolean result = userService.updateById(user);
         ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
         return ResultUtils.success(true);
+    }
+
+    @GetMapping("/getVerifyCode")
+    public BaseResponse<Boolean> getVerifyCode(String userEmail){
+        if (userEmail == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        boolean result = userService.getVerifyCode(userEmail);
+        return ResultUtils.success(result);
     }
 }

@@ -1,13 +1,20 @@
 <template>
-  <BasicLayout />
+  <div id="app">
+    <template v-if="route.path.startsWith('/user')">
+      <router-view/>
+    </template>
+    <template v-else>
+      <BasicLayout/>
+    </template>
+  </div>
 </template>
-
-<style></style>
 <script setup lang="ts">
-import BasicLayout from "@/layout/BasicLayout.vue";
+import BasicLayout from '@/layout/BasicLayout.vue'
+import { useRoute } from 'vue-router'
 
-const doInit = async () => {
-  console.log("doInit");
-};
-doInit();
+const route = useRoute()
 </script>
+
+<style scoped>
+
+</style>

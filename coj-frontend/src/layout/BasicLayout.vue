@@ -5,7 +5,7 @@
       <a-layout-content class="content"><RouterView /></a-layout-content>
       <a-layout-footer class="footer">
         <a href="https://github.com/clx828" target
-          >Code Online Judge by 橙子</a
+        >Code Online Judge by 橙子</a
         ></a-layout-footer
       >
     </a-layout>
@@ -18,7 +18,7 @@ import GlobalHeader from "@/components/GlobalHeader.vue";
 
 <style scoped>
 #basicLayout {
-  height: 100%;
+  width: 100%;
 }
 .header {
 }
